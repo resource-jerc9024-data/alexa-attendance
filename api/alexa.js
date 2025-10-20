@@ -135,12 +135,12 @@ async function getAlexaUserProfile(accessToken) {
   return null;
 }
 
-// Get or create organized Alexa user entry
+// Get or create organized Alexa user entry - FIXED: Removed DB/ prefix
 async function getOrCreateAlexaUser(alexaUserId) {
   await ensureFirebaseInitialized();
   const db = admin.firestore();
   
-  const alexaUserRef = db.collection('DB').doc('credentials')
+  const alexaUserRef = db.collection('credentials')
     .collection('alexa').doc(alexaUserId)
     .collection('profile').doc('default');
   
@@ -163,12 +163,12 @@ async function getOrCreateAlexaUser(alexaUserId) {
   return alexaUserId;
 }
 
-// Find existing user mapping in organized structure
+// Find existing user mapping in organized structure - FIXED: Removed DB/ prefix
 async function findExistingUserMapping(alexaUserId) {
   await ensureFirebaseInitialized();
   const db = admin.firestore();
   
-  const mappingRef = db.collection('DB').doc('credentials')
+  const mappingRef = db.collection('credentials')
     .collection('alexa').doc(alexaUserId)
     .collection('mapping').doc('google');
   
@@ -181,12 +181,12 @@ async function findExistingUserMapping(alexaUserId) {
   return null;
 }
 
-// Create mapping from Alexa user to Google user
+// Create mapping from Alexa user to Google user - FIXED: Removed DB/ prefix
 async function createAlexaToGoogleMapping(alexaUserId, googleUid, alexaProfile, userKey) {
   const db = admin.firestore();
   
   // 1. Create mapping document
-  await db.collection('DB').doc('credentials')
+  await db.collection('credentials')
     .collection('alexa').doc(alexaUserId)
     .collection('mapping').doc('google').set({
       googleUid: googleUid,
@@ -197,7 +197,7 @@ async function createAlexaToGoogleMapping(alexaUserId, googleUid, alexaProfile, 
     });
   
   // 2. Create Alexa profile with mapping info
-  await db.collection('DB').doc('credentials')
+  await db.collection('credentials')
     .collection('alexa').doc(alexaUserId)
     .collection('profile').doc('default').set({
       userId: alexaUserId,
@@ -213,14 +213,14 @@ async function createAlexaToGoogleMapping(alexaUserId, googleUid, alexaProfile, 
   console.log(`Successfully mapped Alexa user ${alexaUserId} to Google user ${googleUid}`);
 }
 
-// Create standalone Alexa user (no Google mapping)
+// Create standalone Alexa user (no Google mapping) - FIXED: Removed DB/ prefix
 async function createStandaloneAlexaUser(alexaUserId, alexaProfile) {
   const db = admin.firestore();
   
   const userKey = alexaUserId; // Use Alexa user ID as key for attendance
   
   // Create Alexa profile
-  await db.collection('DB').doc('credentials')
+  await db.collection('credentials')
     .collection('alexa').doc(alexaUserId)
     .collection('profile').doc('default').set({
       userId: alexaUserId,
@@ -237,13 +237,13 @@ async function createStandaloneAlexaUser(alexaUserId, alexaProfile) {
   return alexaUserId;
 }
 
-// Find Google user by email in existing credentials structure
+// Find Google user by email in existing credentials structure - FIXED: Removed DB/ prefix
 async function findGoogleUserByEmail(email) {
   await ensureFirebaseInitialized();
   const db = admin.firestore();
   
   try {
-    const credentialsRef = db.collection('DB').doc('credentials');
+    const credentialsRef = db.collection('credentials');
     const credentialsDoc = await credentialsRef.get();
     
     if (!credentialsDoc.exists) {
@@ -340,14 +340,14 @@ async function getUserKey(handlerInput) {
   }
 }
 
-// Update getAttendanceKey to handle organized structure
+// Update getAttendanceKey to handle organized structure - FIXED: Removed DB/ prefix
 async function getAttendanceKey(uid) {
   await ensureFirebaseInitialized();
   const db = admin.firestore();
   
   // Check if this is an Alexa user
   if (uid.startsWith('amzn1.ask.account.')) {
-    const alexaProfileRef = db.collection('DB').doc('credentials')
+    const alexaProfileRef = db.collection('credentials')
       .collection('alexa').doc(uid)
       .collection('profile').doc('default');
     
@@ -358,7 +358,7 @@ async function getAttendanceKey(uid) {
       
       // If mapped to Google, use Google user's key
       if (profileData.mappedToGoogle && profileData.googleUid) {
-        const googleProfileRef = db.collection('DB').doc('credentials')
+        const googleProfileRef = db.collection('credentials')
           .collection(profileData.googleUid).doc('profile');
         
         const googleProfile = await googleProfileRef.get();
@@ -373,9 +373,9 @@ async function getAttendanceKey(uid) {
     }
   }
   
-  // For Google users, use existing logic
+  // For Google users, use existing logic - FIXED: Removed DB/ prefix
   try {
-    const ref = db.collection('DB').doc('credentials').collection(uid).doc('profile');
+    const ref = db.collection('credentials').collection(uid).doc('profile');
     const snap = await ref.get();
     if (snap.exists && snap.data() && snap.data().key) {
       return String(snap.data().key).trim();
