@@ -233,39 +233,33 @@ async function createStandaloneAlexaUser(alexaUserId, alexaProfile) {
     });
   
   console.log(`Created standalone Alexa user: ${alexaUserId}`);
-  
   return alexaUserId;
 }
 
-// Find Google user by email in existing credentials structure - FIXED: Removed DB/ prefix
+// Find Google user by email in existing credentials structure (credentials is a COLLECTION)
 async function findGoogleUserByEmail(email) {
   await ensureFirebaseInitialized();
   const db = admin.firestore();
   
   try {
-    const credentialsRef = db.collection('credentials');
-    const credentialsDoc = await credentialsRef.get();
-    
-    if (!credentialsDoc.exists) {
+    const snap = await db.collection('credentials')
+      .where('email', '==', email)
+      .limit(1)
+      .get();
+
+    if (snap.empty) {
       return null;
     }
-    
-    const credentialsData = credentialsDoc.data();
-    
-    // Search through all Google users in credentials
-    for (const [googleUid, userData] of Object.entries(credentialsData)) {
-      if (userData && userData.email === email) {
-        console.log(`Found matching Google user: ${googleUid} for email: ${email}`);
-        return {
-          uid: googleUid,
-          key: userData.key || googleUid,
-          email: userData.email,
-          name: userData.name
-        };
-      }
-    }
-    
-    return null;
+
+    const doc = snap.docs[0];
+    const data = doc.data() || {};
+    console.log(`Found matching Google user: ${doc.id} for email: ${email}`);
+    return {
+      uid: doc.id,
+      key: data.key || doc.id,
+      email: data.email,
+      name: data.name || data.username || null
+    };
   } catch (error) {
     console.error('Error finding Google user by email:', error);
     return null;
@@ -309,38 +303,7 @@ async function findOrCreateUserMapping(handlerInput, alexaUserId, accessToken) {
   }
 }
 
-// FIXED: Get the correct user key with organized Alexa structure
-async function getUserKey(handlerInput) {
-  try {
-    const accessToken = getAccessToken(handlerInput);
-    const alexaUserId = handlerInput.requestEnvelope.context.System.user.userId;
-    
-    if (!accessToken) {
-      // If no account linking, use Alexa user ID but store in organized structure
-      return await getOrCreateAlexaUser(alexaUserId);
-    }
-    
-    // Try to find existing mapping for this Alexa user
-    const googleUid = await findExistingUserMapping(alexaUserId);
-    if (googleUid) {
-      return googleUid;
-    }
-    
-    // Try to find by email and create mapping
-    return await findOrCreateUserMapping(handlerInput, alexaUserId, accessToken);
-    
-  } catch (error) {
-    console.error('Error in getUserKey:', error);
-    try {
-      const alexaUserId = handlerInput.requestEnvelope.context.System.user.userId;
-      return await getOrCreateAlexaUser(alexaUserId);
-    } catch (fallbackError) {
-      return 'anonymous';
-    }
-  }
-}
-
-// Update getAttendanceKey to handle organized structure - FIXED: Removed DB/ prefix
+// Update getAttendanceKey to handle organized structure
 async function getAttendanceKey(uid) {
   await ensureFirebaseInitialized();
   const db = admin.firestore();
@@ -358,11 +321,9 @@ async function getAttendanceKey(uid) {
       
       // If mapped to Google, use Google user's key
       if (profileData.mappedToGoogle && profileData.googleUid) {
-        const googleProfileRef = db.collection('credentials')
-          .collection(profileData.googleUid).doc('profile');
-        
+        const googleProfileRef = db.collection('credentials').doc(profileData.googleUid);
         const googleProfile = await googleProfileRef.get();
-        if (googleProfile.exists && googleProfile.data().key) {
+        if (googleProfile.exists && googleProfile.data() && googleProfile.data().key) {
           return String(googleProfile.data().key).trim();
         }
         return profileData.googleUid;
@@ -373,9 +334,9 @@ async function getAttendanceKey(uid) {
     }
   }
   
-  // For Google users, use existing logic - FIXED: Removed DB/ prefix
+  // For Google users, read the user document in 'credentials' collection
   try {
-    const ref = db.collection('credentials').collection(uid).doc('profile');
+    const ref = db.collection('credentials').doc(uid);
     const snap = await ref.get();
     if (snap.exists && snap.data() && snap.data().key) {
       return String(snap.data().key).trim();
